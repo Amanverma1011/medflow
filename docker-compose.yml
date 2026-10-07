@@ -1,0 +1,58 @@
+name: medflow-ai
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: medflow
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-medflow}
+      POSTGRES_DB: medflow
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U medflow -d medflow"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      HOSPITAL_TZ: ${HOSPITAL_TZ:-UTC}
+      DATABASE_URL: postgresql+psycopg://medflow:${POSTGRES_PASSWORD:-medflow}@postgres:5432/medflow
+      ANALYTICS_DB_PASSWORD: ${ANALYTICS_DB_PASSWORD:-medflow_ro}
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.openai.com/v1}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-}
+      EMBEDDING_BASE_URL: ${EMBEDDING_BASE_URL:-https://api.openai.com/v1}
+      EMBEDDING_API_KEY: ${EMBEDDING_API_KEY:-}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-}
+      VECTOR_DIMENSION: ${VECTOR_DIMENSION:-384}
+      AUTO_SEED: ${AUTO_SEED:-true}
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-MedFlow#2026}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    volumes:
+      - uploads:/app/data/uploads
+
+  frontend:
+    build: ./frontend
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"
+
+volumes:
+  pgdata:
+  uploads:
